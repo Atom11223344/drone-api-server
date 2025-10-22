@@ -14,13 +14,13 @@ app.get('/configs/:droneId', async (req, res) => {
     const response = await fetch(process.env.CONFIG_SERVER_URL);
     const responseData = await response.json(); 
 
-    // 2. ดึง headers (ถูกต้อง)
-    const headers = responseData.headers;
+    // 2. FIX: ดึง "หัวตาราง" และ "ทำความสะอาด" (Trim) ช่องว่าง
+    const headers = responseData.headers.map(h => h.trim());
 
     // 3. ดึง rows (ถูกต้อง)
     const valueRows = responseData.data.slice(1);
 
-    // 4. แปลงร่าง (ถูกต้อง)
+    // 4. แปลงร่าง (ตอนนี้ 'headers' สะอาดแล้ว)
     const allConfigs = valueRows.map(row => {
       const configObject = {};
       headers.forEach((header, index) => {
@@ -29,7 +29,7 @@ app.get('/configs/:droneId', async (req, res) => {
       return configObject;
     });
 
-    // 5. FIX: ค้นหาแบบ "ปลอดภัย" และ "ยืดหยุ่น"
+    // 5. ค้นหา (โค้ดนี้ถูกต้องแล้ว)
     const config = allConfigs.find(item => 
       item.drone_id != null && item.drone_id == droneId
     );
@@ -64,13 +64,13 @@ app.get('/status/:droneId', async (req, res) => {
     const response = await fetch(process.env.CONFIG_SERVER_URL);
     const responseData = await response.json();
 
-    // 2. ดึง headers (ถูกต้อง)
-    const headers = responseData.headers;
+    // 2. FIX: ดึง "หัวตาราง" และ "ทำความสะอาด" (Trim) ช่องว่าง
+    const headers = responseData.headers.map(h => h.trim());
 
     // 3. ดึง rows (ถูกต้อง)
     const valueRows = responseData.data.slice(1);
 
-    // 4. แปลงร่าง (ถูกต้อง)
+    // 4. แปลงร่าง (ตอนนี้ 'headers' สะอาดแล้ว)
     const allConfigs = valueRows.map(row => {
       const configObject = {};
       headers.forEach((header, index) => {
@@ -79,7 +79,7 @@ app.get('/status/:droneId', async (req, res) => {
       return configObject;
     });
 
-    // 5. FIX: ค้นหาแบบ "ปลอดภัย" และ "ยืดหยุ่น"
+    // 5. ค้นหา (โค้ดนี้ถูกต้องแล้ว)
     const config = allConfigs.find(item => 
       item.drone_id != null && item.drone_id == droneId
     );

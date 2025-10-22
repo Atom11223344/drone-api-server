@@ -15,8 +15,11 @@ app.get('/configs/:droneId', async (req, res) => {
     const response = await fetch(process.env.CONFIG_SERVER_URL); // 
     const allConfigs = await response.json(); // แปลง response เป็น JSON array
 
+    console.log('DEBUG: Data from Server 1:', JSON.stringify(allConfigs));
+
     // 3. ค้นหาเฉพาะ config ที่ตรงกับ ID ที่เราต้องการ
     const config = allConfigs.find(item => item.drone_id == droneId); // 
+
 
     // 4. (เผื่อหาไม่เจอ)
     if (!config) {

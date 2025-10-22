@@ -14,31 +14,42 @@ app.get('/configs/:droneId', async (req, res) => {
     const response = await fetch(process.env.CONFIG_SERVER_URL);
     const responseData = await response.json(); 
 
-    // 2. ดึง "หัวตาราง" และ "ทำความสะอาด" (Trim) ช่องว่าง
-    const headers = responseData.headers.map(h => h.trim());
-
-    // 3. ดึง rows (ถูกต้อง)
+    // 2. ดึง "หัวตาราง" (ถูกต้อง)
+    let headers = responseData.headers;
+    if (!headers || headers.length === 0) {
+      if (responseData.data && responseData.data.length > 0) {
+        headers = responseData.data[0];
+      } else {
+        throw new Error('Server 1 returned no headers and no data');
+      }
+    }
+    
+    // 3. ทำความสะอาด "หัวตาราง" (ถูกต้อง)
+    const cleanedHeaders = headers.map(h => h.trim());
+    
+    // 4. ดึง rows (ถูกต้อง)
     const valueRows = responseData.data.slice(1);
 
-    // 4. แปลงร่าง (ตอนนี้ 'headers' สะอาดแล้ว)
+    // 5. แปลงร่าง (ถูกต้อง)
     const allConfigs = valueRows.map(row => {
       const configObject = {};
-      headers.forEach((header, index) => {
+      cleanedHeaders.forEach((header, index) => {
         configObject[header] = row[index];
       });
       return configObject;
     });
 
-    // 5. FIX: เปรียบเทียบ Number === Number
+    // 6. FIX: ค้นหาแบบ "สะอาด"
+    // (เช็ก null -> แปลงเป็น String -> ตัดช่องว่าง -> เทียบ String)
     const config = allConfigs.find(item => 
-      item.drone_id != null && item.drone_id === parseInt(droneId, 10)
+      item.drone_id != null && item.drone_id.toString().trim() === droneId
     );
 
     if (!config) {
       return res.status(404).json({ error: 'Config not found' });
     }
 
-    // 6. คัดกรองข้อมูล
+    // 7. คัดกรองข้อมูล
     const result = {
       drone_id: config.drone_id,
       drone_name: config.drone_name,
@@ -58,37 +69,47 @@ app.get('/configs/:droneId', async (req, res) => {
 // --- 2. GET /status/{droneId} (แก้ไข .find) ---
 app.get('/status/:droneId', async (req, res) => {
   try {
-    const { droneId } = req.params; // นี่คือ String (เช่น "3002")
+    const { droneId } = req.params; 
 
     // 1. ดึงข้อมูล (ถูกต้อง)
     const response = await fetch(process.env.CONFIG_SERVER_URL);
     const responseData = await response.json();
 
-    // 2. ดึง "หัวตาราง" และ "ทำความสะอาด" (Trim) ช่องว่าง
-    const headers = responseData.headers.map(h => h.trim());
-
-    // 3. ดึง rows (ถูกต้อง)
+    // 2. ดึง "หัวตาราง" (ถูกต้อง)
+    let headers = responseData.headers;
+    if (!headers || headers.length === 0) {
+      if (responseData.data && responseData.data.length > 0) {
+        headers = responseData.data[0];
+      } else {
+        throw new Error('Server 1 returned no headers and no data');
+      }
+    }
+    
+    // 3. ทำความสะอาด "หัวตาราง" (ถูกต้อง)
+    const cleanedHeaders = headers.map(h => h.trim());
+    
+    // 4. ดึง rows (ถูกต้อง)
     const valueRows = responseData.data.slice(1);
 
-    // 4. แปลงร่าง (ตอนนี้ 'headers' สะอาดแล้ว)
+    // 5. แปลงร่าง (ถูกต้อง)
     const allConfigs = valueRows.map(row => {
       const configObject = {};
-      headers.forEach((header, index) => {
+      cleanedHeaders.forEach((header, index) => {
         configObject[header] = row[index];
       });
       return configObject;
     });
 
-    // 5. FIX: เปรียบเทียบ Number === Number
+    // 6. FIX: ค้นหาแบบ "สะอาด"
     const config = allConfigs.find(item => 
-      item.drone_id != null && item.drone_id === parseInt(droneId, 10)
+      item.drone_id != null && item.drone_id.toString().trim() === droneId
     );
 
     if (!config) {
       return res.status(404).json({ error: 'Status not found' });
     }
 
-    // 6. คัดกรองข้อมูล
+    // 7. คัดกรองข้อมูล
     const result = {
       condition: config.condition
     };
@@ -106,6 +127,7 @@ app.get('/logs/:droneId', async (req, res) => {
   try {
     const { droneId } = req.params;
 
+    // (ข้อมูล Server 2 สะอาดดี เราไม่ต้องแก้)
     const filter = `(drone_id='${droneId}')`;
     const sort = '-created';
     const perPage = 12;

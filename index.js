@@ -31,7 +31,7 @@ app.get('/configs/:droneId', async (req, res) => {
     // ตอนนี้ allConfigs คือ [{drone_id: 3001, ...}, {drone_id: 3002, ...}]
 
     // 5. ค้นหาใน Array ที่แปลงร่างแล้ว
-    const config = allConfigs.find(item => item.drone_id == droneId);
+    const config = allConfigs.find(item => item.drone_id.toString() === droneId);
 
     if (!config) {
       return res.status(404).json({ error: 'Config not found' });
@@ -79,8 +79,7 @@ app.get('/status/:droneId', async (req, res) => {
     });
 
     // 5. ค้นหาใน Array ที่แปลงร่างแล้ว
-    const config = allConfigs.find(item => item.drone_id == droneId);
-
+    const config = allConfigs.find(item => item.drone_id.toString() === droneId);
     if (!config) {
       return res.status(404).json({ error: 'Status not found' });
     }

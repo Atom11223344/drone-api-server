@@ -1,33 +1,43 @@
 require('dotenv').config();
 const express = require('express');
-// (นี่คือ 'node-fetch' เวอร์ชัน 2 ที่เราติดตั้งไป)
-const fetch = require('node-fetch');
+const fetch = require('node-fetch@2');
 const app = express();
 
-// ทำให้ Express อ่าน JSON จาก POST request ได้
 app.use(express.json());
 
-// --- 1. GET /configs/{droneId} (แก้ไขแล้ว) ---
+// --- 1. GET /configs/{droneId} (แก้ไขตรรกะแปลงข้อมูล) ---
 app.get('/configs/:droneId', async (req, res) => {
   try {
     const { droneId } = req.params;
 
     // 1. ดึงข้อมูลจาก Server 1
     const response = await fetch(process.env.CONFIG_SERVER_URL);
-    const dataString = await response.json(); // Server 1 ส่งข้อมูลมาเป็น String
+    const responseData = await response.json(); // ได้ {"data": [[...]]}
 
-    // 2. FIX: แปลง String นั้นให้เป็น Array จริงๆ ก่อน
-    const allConfigs = JSON.parse(dataString);
+    // 2. ล้วงเอา Array ของ Array ออกมา
+    const dataArray = responseData.data;
 
-    // 3. ค้นหาใน Array ที่แปลงแล้ว
+    // 3. FIX: แปลง Array ของ Array ให้เป็น Array ของ Object
+    const headers = dataArray[0]; // ["drone_id", "drone_name", ...]
+    const valueRows = dataArray.slice(1); // เอาเฉพาะแถวข้อมูล
+
+    const allConfigs = valueRows.map(row => {
+      const configObject = {};
+      headers.forEach((header, index) => {
+        configObject[header] = row[index];
+      });
+      return configObject;
+    });
+    // ตอนนี้ allConfigs คือ [{drone_id: 3001, ...}, {drone_id: 3002, ...}]
+
+    // 4. ค้นหาใน Array ที่แปลงร่างแล้ว
     const config = allConfigs.find(item => item.drone_id == droneId);
 
-    // 4. (เผื่อหาไม่เจอ)
     if (!config) {
       return res.status(404).json({ error: 'Config not found' });
     }
 
-    // 5. คัดกรองข้อมูลเฉพาะ 5 fields ที่โจทย์ต้องการ
+    // 5. คัดกรองข้อมูล
     const result = {
       drone_id: config.drone_id,
       drone_name: config.drone_name,
@@ -36,42 +46,6 @@ app.get('/configs/:droneId', async (req, res) => {
       weight: config.weight
     };
 
-    // 6. ส่งข้อมูลที่คัดแล้วกลับไป
-    res.json(result);
-
-  } catch (error) {
-    console.error(error); // บรรทัดนี้มีประโยชน์มาก!
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// --- 2. GET /status/{droneId} (แก้ไขแล้ว) ---
-app.get('/status/:droneId', async (req, res) => {
-  try {
-    // 1. ดึงเลข ID จาก URL
-    const { droneId } = req.params;
-
-    // 2. ไปดึงข้อมูล "ทั้งหมด" จาก Server 1
-    const response = await fetch(process.env.CONFIG_SERVER_URL);
-    const dataString = await response.json(); // Server 1 ส่งข้อมูลมาเป็น String
-
-    // 3. FIX: แปลง String นั้นให้เป็น Array จริงๆ ก่อน
-    const allConfigs = JSON.parse(dataString);
-
-    // 4. ค้นหาเฉพาะ config ที่ตรงกับ ID
-    const config = allConfigs.find(item => item.drone_id == droneId);
-
-    // 5. (เผื่อหาไม่เจอ)
-    if (!config) {
-      return res.status(404).json({ error: 'Status not found' });
-    }
-
-    // 6. คัดกรองข้อมูลเฉพาะ 'condition'
-    const result = {
-      condition: config.condition
-    };
-
-    // 7. ส่งข้อมูลที่คัดแล้วกลับไป
     res.json(result);
 
   } catch (error) {
@@ -80,7 +54,52 @@ app.get('/status/:droneId', async (req, res) => {
   }
 });
 
-// --- 3. GET /logs/{droneId} (โค้ดเดิม - ไม่ต้องแก้) ---
+// --- 2. GET /status/{droneId} (แก้ไขตรรกะแปลงข้อมูล) ---
+app.get('/status/:droneId', async (req, res) => {
+  try {
+    const { droneId } = req.params;
+
+    // 1. ดึงข้อมูลจาก Server 1
+    const response = await fetch(process.env.CONFIG_SERVER_URL);
+    const responseData = await response.json(); // ได้ {"data": [[...]]}
+
+    // 2. ล้วงเอา Array ของ Array ออกมา
+    const dataArray = responseData.data;
+
+    // 3. FIX: แปลง Array ของ Array ให้เป็น Array ของ Object
+    const headers = dataArray[0]; // ["drone_id", "drone_name", ...]
+    const valueRows = dataArray.slice(1); // เอาเฉพาะแถวข้อมูล
+
+    const allConfigs = valueRows.map(row => {
+      const configObject = {};
+      headers.forEach((header, index) => {
+        configObject[header] = row[index];
+      });
+      return configObject;
+    });
+    // ตอนนี้ allConfigs คือ [{drone_id: 3001, ...}, {drone_id: 3002, ...}]
+
+    // 4. ค้นหาใน Array ที่แปลงร่างแล้ว
+    const config = allConfigs.find(item => item.drone_id == droneId);
+
+    if (!config) {
+      return res.status(404).json({ error: 'Status not found' });
+    }
+
+    // 5. คัดกรองข้อมูล
+    const result = {
+      condition: config.condition
+    };
+
+    res.json(result);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- 3. GET /logs/{droneId} (โค้ดเดิม - ถูกต้องแล้ว) ---
 app.get('/logs/:droneId', async (req, res) => {
   try {
     const { droneId } = req.params;
@@ -101,7 +120,7 @@ app.get('/logs/:droneId', async (req, res) => {
       throw new Error('Failed to fetch logs from Server 2');
     }
 
-    const logsData = await response.json(); // Server 2 ทำงานถูกต้อง
+    const logsData = await response.json();
 
     const result = logsData.items.map(log => {
       return {
@@ -121,7 +140,7 @@ app.get('/logs/:droneId', async (req, res) => {
   }
 });
 
-// --- 4. POST /logs (โค้ดเดิม - ไม่ต้องแก้) ---
+// --- 4. POST /logs (โค้ดเดิม - ถูกต้องแล้ว) ---
 app.post('/logs', async (req, res) => {
   try {
     const { drone_id, drone_name, country, celsius } = req.body;

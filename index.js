@@ -1,11 +1,11 @@
 require('dotenv').config();
 const express = require('express');
-const fetch = require('node-fetch@2');
+const fetch = require('node-fetch'); // <--- FIX: แก้ไขบรรทัดนี้ เอา @2 ออก
 const app = express();
 
 app.use(express.json());
 
-// --- 1. GET /configs/{droneId} (แก้ไขตรรกะแปลงข้อมูล) ---
+// --- 1. GET /configs/{droneId} (ตรรกะนี้ถูกต้องแล้ว) ---
 app.get('/configs/:droneId', async (req, res) => {
   try {
     const { droneId } = req.params;
@@ -17,7 +17,7 @@ app.get('/configs/:droneId', async (req, res) => {
     // 2. ล้วงเอา Array ของ Array ออกมา
     const dataArray = responseData.data;
 
-    // 3. FIX: แปลง Array ของ Array ให้เป็น Array ของ Object
+    // 3. แปลง Array ของ Array ให้เป็น Array ของ Object
     const headers = dataArray[0]; // ["drone_id", "drone_name", ...]
     const valueRows = dataArray.slice(1); // เอาเฉพาะแถวข้อมูล
 
@@ -54,7 +54,7 @@ app.get('/configs/:droneId', async (req, res) => {
   }
 });
 
-// --- 2. GET /status/{droneId} (แก้ไขตรรกะแปลงข้อมูล) ---
+// --- 2. GET /status/{droneId} (ตรรกะนี้ถูกต้องแล้ว) ---
 app.get('/status/:droneId', async (req, res) => {
   try {
     const { droneId } = req.params;
@@ -66,9 +66,9 @@ app.get('/status/:droneId', async (req, res) => {
     // 2. ล้วงเอา Array ของ Array ออกมา
     const dataArray = responseData.data;
 
-    // 3. FIX: แปลง Array ของ Array ให้เป็น Array ของ Object
-    const headers = dataArray[0]; // ["drone_id", "drone_name", ...]
-    const valueRows = dataArray.slice(1); // เอาเฉพาะแถวข้อมูล
+    // 3. แปลง Array ของ Array ให้เป็น Array ของ Object
+    const headers = dataArray[0];
+    const valueRows = dataArray.slice(1);
 
     const allConfigs = valueRows.map(row => {
       const configObject = {};
@@ -77,7 +77,6 @@ app.get('/status/:droneId', async (req, res) => {
       });
       return configObject;
     });
-    // ตอนนี้ allConfigs คือ [{drone_id: 3001, ...}, {drone_id: 3002, ...}]
 
     // 4. ค้นหาใน Array ที่แปลงร่างแล้ว
     const config = allConfigs.find(item => item.drone_id == droneId);

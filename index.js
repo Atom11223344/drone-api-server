@@ -29,14 +29,12 @@ app.get('/configs/:droneId', async (req, res) => {
       return configObject;
     });
 
-    // 5. FIX: ค้นหาแบบ "ปลอดภัย"
-    // (เช็กก่อนว่า item.drone_id มีค่า)
+    // 5. FIX: ค้นหาแบบ "ปลอดภัย" และ "ยืดหยุ่น"
     const config = allConfigs.find(item => 
-      item.drone_id && item.drone_id.toString() === droneId
+      item.drone_id != null && item.drone_id == droneId
     );
 
     if (!config) {
-      // (ถ้าไม่เจอ ก็จะมาที่นี่ ซึ่งถูกต้องแล้ว)
       return res.status(404).json({ error: 'Config not found' });
     }
 
@@ -81,10 +79,9 @@ app.get('/status/:droneId', async (req, res) => {
       return configObject;
     });
 
-    // 5. FIX: ค้นหาแบบ "ปลอดภัย"
-    // (เช็กก่อนว่า item.drone_id มีค่า)
+    // 5. FIX: ค้นหาแบบ "ปลอดภัย" และ "ยืดหยุ่น"
     const config = allConfigs.find(item => 
-      item.drone_id && item.drone_id.toString() === droneId
+      item.drone_id != null && item.drone_id == droneId
     );
 
     if (!config) {

@@ -5,7 +5,7 @@ const app = express();
 
 app.use(express.json());
 
-// --- 1. GET /configs/{droneId} (เพิ่ม Log) ---
+// --- 1. GET /configs/{droneId} (แก้ไขตรรกะหา Headers) ---
 app.get('/configs/:droneId', async (req, res) => {
   try {
     const { droneId } = req.params;
@@ -14,26 +14,36 @@ app.get('/configs/:droneId', async (req, res) => {
     const response = await fetch(process.env.CONFIG_SERVER_URL);
     const responseData = await response.json(); 
 
-    // 2. ดึง "หัวตาราง" และ "ทำความสะอาด" (Trim) ช่องว่าง
-    const headers = responseData.headers.map(h => h.trim());
+    // 2. FIX: ตรรกะการหา "หัวตาราง" แบบปลอดภัย
+    let headers = responseData.headers; // ลองดึงจาก 'headers'
+    
+    // 3. FIX: ถ้า 'headers' ไม่มี หรือ ว่างเปล่า...
+    if (!headers || headers.length === 0) {
+      if (responseData.data && responseData.data.length > 0) {
+        // ...ให้ไปดึง "หัวตาราง" จาก data แถวแรกแทน
+        headers = responseData.data[0];
+      } else {
+        // ถ้า data ก็ว่างเปล่าด้วย... เรายอมแพ้
+        throw new Error('Server 1 returned no headers and no data');
+      }
+    }
 
-    // 3. ดึง rows (ถูกต้อง)
+    // 4. ทำความสะอาด "หัวตาราง" ที่เราหามาได้
+    const cleanedHeaders = headers.map(h => h.trim());
+    
+    // 5. ดึง rows (ถูกต้อง)
     const valueRows = responseData.data.slice(1);
 
-    // 4. แปลงร่าง (ถูกต้อง)
+    // 6. แปลงร่าง (ตอนนี้ 'cleanedHeaders' สะอาดแล้ว)
     const allConfigs = valueRows.map(row => {
       const configObject = {};
-      headers.forEach((header, index) => {
+      cleanedHeaders.forEach((header, index) => {
         configObject[header] = row[index];
       });
       return configObject;
     });
 
-    // ---  DEBUG: พิมพ์ผลลัพธ์หลังแปลงร่างออกมาดู ---
-    console.log('DEBUG: Processed allConfigs:', JSON.stringify(allConfigs.slice(0, 5))); // ขอดูแค่ 5 ตัวแรก
-    // --- END DEBUG ---
-
-    // 5. ค้นหา (โค้ดนี้ถูกต้องแล้ว)
+    // 7. ค้นหา (โค้ดนี้ถูกต้องแล้ว)
     const config = allConfigs.find(item => 
       item.drone_id != null && item.drone_id == droneId
     );
@@ -42,7 +52,7 @@ app.get('/configs/:droneId', async (req, res) => {
       return res.status(404).json({ error: 'Config not found' });
     }
 
-    // 6. คัดกรองข้อมูล
+    // 8. คัดกรองข้อมูล
     const result = {
       drone_id: config.drone_id,
       drone_name: config.drone_name,
@@ -59,26 +69,45 @@ app.get('/configs/:droneId', async (req, res) => {
   }
 });
 
-// --- 2. GET /status/{droneId} (โค้ดเดิม) ---
-// (เรา Debug แค่ /configs ก่อน)
+// --- 2. GET /status/{droneId} (แก้ไขตรรกะหา Headers) ---
 app.get('/status/:droneId', async (req, res) => {
   try {
     const { droneId } = req.params;
 
+    // 1. ดึงข้อมูล (ถูกต้อง)
     const response = await fetch(process.env.CONFIG_SERVER_URL);
     const responseData = await response.json();
 
-    const headers = responseData.headers.map(h => h.trim());
+    // 2. FIX: ตรรกะการหา "หัวตาราง" แบบปลอดภัย
+    let headers = responseData.headers; // ลองดึงจาก 'headers'
+    
+    // 3. FIX: ถ้า 'headers' ไม่มี หรือ ว่างเปล่า...
+    if (!headers || headers.length === 0) {
+      if (responseData.data && responseData.data.length > 0) {
+        // ...ให้ไปดึง "หัวตาราง" จาก data แถวแรกแทน
+        headers = responseData.data[0];
+      } else {
+        // ถ้า data ก็ว่างเปล่าด้วย... เรายอมแพ้
+        throw new Error('Server 1 returned no headers and no data');
+      }
+    }
+
+    // 4. ทำความสะอาด "หัวตาราง" ที่เราหามาได้
+    const cleanedHeaders = headers.map(h => h.trim());
+
+    // 5. ดึง rows (ถูกต้อง)
     const valueRows = responseData.data.slice(1);
 
+    // 6. แปลงร่าง (ตอนนี้ 'cleanedHeaders' สะอาดแล้ว)
     const allConfigs = valueRows.map(row => {
       const configObject = {};
-      headers.forEach((header, index) => {
+      cleanedHeaders.forEach((header, index) => {
         configObject[header] = row[index];
       });
       return configObject;
     });
 
+    // 7. ค้นหา (โค้ดนี้ถูกต้องแล้ว)
     const config = allConfigs.find(item => 
       item.drone_id != null && item.drone_id == droneId
     );
@@ -87,6 +116,7 @@ app.get('/status/:droneId', async (req, res) => {
       return res.status(404).json({ error: 'Status not found' });
     }
 
+    // 8. คัดกรองข้อมูล
     const result = {
       condition: config.condition
     };
@@ -98,9 +128,6 @@ app.get('/status/:droneId', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
-// (ส่วนที่เหลือของ /logs และ /post เหมือนเดิม)
-// ... (วางโค้ด GET /logs และ POST /logs ของคุณที่นี่) ...
 
 // --- 3. GET /logs/{droneId} (โค้ดเดิม - ถูกต้องแล้ว) ---
 app.get('/logs/:droneId', async (req, res) => {

@@ -5,7 +5,7 @@ const app = express();
 
 app.use(express.json());
 
-// --- 1. GET /configs/{droneId} (แก้ไข .find) ---
+// --- 1. GET /configs/{droneId} (เพิ่ม Log) ---
 app.get('/configs/:droneId', async (req, res) => {
   try {
     const { droneId } = req.params;
@@ -14,13 +14,13 @@ app.get('/configs/:droneId', async (req, res) => {
     const response = await fetch(process.env.CONFIG_SERVER_URL);
     const responseData = await response.json(); 
 
-    // 2. FIX: ดึง "หัวตาราง" และ "ทำความสะอาด" (Trim) ช่องว่าง
+    // 2. ดึง "หัวตาราง" และ "ทำความสะอาด" (Trim) ช่องว่าง
     const headers = responseData.headers.map(h => h.trim());
 
     // 3. ดึง rows (ถูกต้อง)
     const valueRows = responseData.data.slice(1);
 
-    // 4. แปลงร่าง (ตอนนี้ 'headers' สะอาดแล้ว)
+    // 4. แปลงร่าง (ถูกต้อง)
     const allConfigs = valueRows.map(row => {
       const configObject = {};
       headers.forEach((header, index) => {
@@ -28,6 +28,10 @@ app.get('/configs/:droneId', async (req, res) => {
       });
       return configObject;
     });
+
+    // ---  DEBUG: พิมพ์ผลลัพธ์หลังแปลงร่างออกมาดู ---
+    console.log('DEBUG: Processed allConfigs:', JSON.stringify(allConfigs.slice(0, 5))); // ขอดูแค่ 5 ตัวแรก
+    // --- END DEBUG ---
 
     // 5. ค้นหา (โค้ดนี้ถูกต้องแล้ว)
     const config = allConfigs.find(item => 
@@ -55,22 +59,18 @@ app.get('/configs/:droneId', async (req, res) => {
   }
 });
 
-// --- 2. GET /status/{droneId} (แก้ไข .find) ---
+// --- 2. GET /status/{droneId} (โค้ดเดิม) ---
+// (เรา Debug แค่ /configs ก่อน)
 app.get('/status/:droneId', async (req, res) => {
   try {
     const { droneId } = req.params;
 
-    // 1. ดึงข้อมูล (ถูกต้อง)
     const response = await fetch(process.env.CONFIG_SERVER_URL);
     const responseData = await response.json();
 
-    // 2. FIX: ดึง "หัวตาราง" และ "ทำความสะอาด" (Trim) ช่องว่าง
     const headers = responseData.headers.map(h => h.trim());
-
-    // 3. ดึง rows (ถูกต้อง)
     const valueRows = responseData.data.slice(1);
 
-    // 4. แปลงร่าง (ตอนนี้ 'headers' สะอาดแล้ว)
     const allConfigs = valueRows.map(row => {
       const configObject = {};
       headers.forEach((header, index) => {
@@ -79,7 +79,6 @@ app.get('/status/:droneId', async (req, res) => {
       return configObject;
     });
 
-    // 5. ค้นหา (โค้ดนี้ถูกต้องแล้ว)
     const config = allConfigs.find(item => 
       item.drone_id != null && item.drone_id == droneId
     );
@@ -88,7 +87,6 @@ app.get('/status/:droneId', async (req, res) => {
       return res.status(404).json({ error: 'Status not found' });
     }
 
-    // 6. คัดกรองข้อมูล
     const result = {
       condition: config.condition
     };
@@ -100,6 +98,9 @@ app.get('/status/:droneId', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// (ส่วนที่เหลือของ /logs และ /post เหมือนเดิม)
+// ... (วางโค้ด GET /logs และ POST /logs ของคุณที่นี่) ...
 
 // --- 3. GET /logs/{droneId} (โค้ดเดิม - ถูกต้องแล้ว) ---
 app.get('/logs/:droneId', async (req, res) => {
@@ -177,6 +178,7 @@ app.post('/logs', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
 
 // --- ส่วนเริ่มต้นเซิร์ฟเวอร์ (โค้ดเดิม) ---
 const PORT = process.env.PORT || 3000;

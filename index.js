@@ -1,73 +1,77 @@
 require('dotenv').config();
 const express = require('express');
-const fetch = require('node-fetch'); // หรือ import axios
+// (นี่คือ 'node-fetch' เวอร์ชัน 2 ที่เราติดตั้งไป)
+const fetch = require('node-fetch');
 const app = express();
-app.use(express.json()); // ทำให้ Express อ่าน JSON จาก request body ได้ (สำหรับ POST)
-const PORT = process.env.PORT || 3000; // สำหรับการ Deploy
 
-// GET /configs/{droneId}
+// ทำให้ Express อ่าน JSON จาก POST request ได้
+app.use(express.json());
+
+// --- 1. GET /configs/{droneId} (แก้ไขแล้ว) ---
 app.get('/configs/:droneId', async (req, res) => {
   try {
-    // 1. ดึงเลข ID จาก URL ที่ผู้ใช้เรียกมา
-    const { droneId } = req.params; // [cite: 27] (ถ้าเรียก /configs/3001, droneId จะเป็น "3001")
+    const { droneId } = req.params;
 
-    // 2. ไปดึงข้อมูล "ทั้งหมด" จาก Server 1
-    const response = await fetch(process.env.CONFIG_SERVER_URL); // 
-    const allConfigs = await response.json(); // แปลง response เป็น JSON array
+    // 1. ดึงข้อมูลจาก Server 1
+    const response = await fetch(process.env.CONFIG_SERVER_URL);
+    const dataString = await response.json(); // Server 1 ส่งข้อมูลมาเป็น String
 
-    console.log('DEBUG: Data from Server 1:', JSON.stringify(allConfigs));
+    // 2. FIX: แปลง String นั้นให้เป็น Array จริงๆ ก่อน
+    const allConfigs = JSON.parse(dataString);
 
-    // 3. ค้นหาเฉพาะ config ที่ตรงกับ ID ที่เราต้องการ
-    const config = allConfigs.find(item => item.drone_id == droneId); // 
-
+    // 3. ค้นหาใน Array ที่แปลงแล้ว
+    const config = allConfigs.find(item => item.drone_id == droneId);
 
     // 4. (เผื่อหาไม่เจอ)
     if (!config) {
       return res.status(404).json({ error: 'Config not found' });
     }
 
-    // 5. คัดกรองข้อมูลเฉพาะ 5 fields ที่โจทย์ต้องการ [cite: 30]
+    // 5. คัดกรองข้อมูลเฉพาะ 5 fields ที่โจทย์ต้องการ
     const result = {
       drone_id: config.drone_id,
       drone_name: config.drone_name,
       light: config.light,
       country: config.country,
-      weight: config.weight // [cite: 31-38] (ในโจทย์อาจพิมพ์ 'weigh' แต่ตัวอย่างคือ 'weight')
+      weight: config.weight
     };
 
     // 6. ส่งข้อมูลที่คัดแล้วกลับไป
     res.json(result);
 
   } catch (error) {
-    console.error(error);
+    console.error(error); // บรรทัดนี้มีประโยชน์มาก!
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// GET /status/{droneId}
+// --- 2. GET /status/{droneId} (แก้ไขแล้ว) ---
 app.get('/status/:droneId', async (req, res) => {
   try {
     // 1. ดึงเลข ID จาก URL
-    const { droneId } = req.params; // [cite: 41]
+    const { droneId } = req.params;
 
     // 2. ไปดึงข้อมูล "ทั้งหมด" จาก Server 1
-    const response = await fetch(process.env.CONFIG_SERVER_URL); // [cite: 42]
-    const allConfigs = await response.json();
+    const response = await fetch(process.env.CONFIG_SERVER_URL);
+    const dataString = await response.json(); // Server 1 ส่งข้อมูลมาเป็น String
 
-    // 3. ค้นหาเฉพาะ config ที่ตรงกับ ID
-    const config = allConfigs.find(item => item.drone_id == droneId); // [cite: 43]
+    // 3. FIX: แปลง String นั้นให้เป็น Array จริงๆ ก่อน
+    const allConfigs = JSON.parse(dataString);
 
-    // 4. (เผื่อหาไม่เจอ)
+    // 4. ค้นหาเฉพาะ config ที่ตรงกับ ID
+    const config = allConfigs.find(item => item.drone_id == droneId);
+
+    // 5. (เผื่อหาไม่เจอ)
     if (!config) {
       return res.status(404).json({ error: 'Status not found' });
     }
 
-    // 5. คัดกรองข้อมูลเฉพาะ 'condition' [cite: 44]
+    // 6. คัดกรองข้อมูลเฉพาะ 'condition'
     const result = {
-      condition: config.condition // [cite: 49]
+      condition: config.condition
     };
 
-    // 6. ส่งข้อมูลที่คัดแล้วกลับไป
+    // 7. ส่งข้อมูลที่คัดแล้วกลับไป
     res.json(result);
 
   } catch (error) {
@@ -76,46 +80,39 @@ app.get('/status/:droneId', async (req, res) => {
   }
 });
 
-// GET /logs/{droneId}
+// --- 3. GET /logs/{droneId} (โค้ดเดิม - ไม่ต้องแก้) ---
 app.get('/logs/:droneId', async (req, res) => {
   try {
-    // 1. ดึงเลข ID จาก URL
-    const { droneId } = req.params; // 
+    const { droneId } = req.params;
 
-    // 2. สร้าง URL สำหรับกรองข้อมูล (ตามคู่มือ PocketBase)
     const filter = `(drone_id='${droneId}')`;
-    const sort = '-created'; // เครื่องหมายลบ (-) หมายถึง Descending (ล่าสุดขึ้นก่อน) 
-    const perPage = 12; // 
+    const sort = '-created';
+    const perPage = 12;
 
-    // (Encode URL เผื่อมีอักขระพิเศษ)
     const url = `${process.env.LOG_SERVER_URL}?filter=${encodeURIComponent(filter)}&sort=${sort}&perPage=${perPage}`;
 
-    // 3. ไปดึงข้อมูลจาก Server 2 (ต้องใส่ Token!)
     const response = await fetch(url, {
       headers: {
-        'Authorization': `Bearer ${process.env.LOG_API_TOKEN}` // 
+        'Authorization': `Bearer ${process.env.LOG_API_TOKEN}`
       }
     });
 
     if (!response.ok) {
-        throw new Error('Failed to fetch logs from Server 2');
+      throw new Error('Failed to fetch logs from Server 2');
     }
 
-    const logsData = await response.json(); // ข้อมูลจะมาในรูปแบบ { items: [...] }
+    const logsData = await response.json(); // Server 2 ทำงานถูกต้อง
 
-    // 4. คัดกรองข้อมูลเฉพาะ 5 fields ที่โจทย์ต้องการ 
-    const result = logsData.items.map(log => { // ใช้ .map() เพื่อแปลง array
+    const result = logsData.items.map(log => {
       return {
         drone_id: log.drone_id,
         drone_name: log.drone_name,
         created: log.created,
         country: log.country,
         celsius: log.celsius
-        // [cite: 58-72]
       };
     });
 
-    // 5. ส่งข้อมูลที่คัดแล้วกลับไป
     res.json(result);
 
   } catch (error) {
@@ -124,14 +121,11 @@ app.get('/logs/:droneId', async (req, res) => {
   }
 });
 
-// POST /logs
+// --- 4. POST /logs (โค้ดเดิม - ไม่ต้องแก้) ---
 app.post('/logs', async (req, res) => {
   try {
-    // 1. รับข้อมูลที่ผู้ใช้ส่งมา (Frontend จะส่งมาให้)
-    // โจทย์บอกว่าให้เอาแค่ 4 fields นี้ไปสร้างต่อ [cite: 78]
     const { drone_id, drone_name, country, celsius } = req.body;
-    
-    // 2. เตรียมข้อมูลที่จะส่งไป Server 2
+
     const dataToCreate = {
       drone_id,
       drone_name,
@@ -139,25 +133,22 @@ app.post('/logs', async (req, res) => {
       celsius
     };
 
-    // 3. ส่ง POST request ไปที่ Server 2 เพื่อ "สร้าง" ข้อมูล
     const response = await fetch(process.env.LOG_SERVER_URL, {
-      method: 'POST', // บอกว่านี่คือการ POST
+      method: 'POST',
       headers: {
-        'Content-Type': 'application/json', // บอกว่าเรากำลังส่ง JSON
-        'Authorization': `Bearer ${process.env.LOG_API_TOKEN}` // ใส่ Token ด้วย
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.LOG_API_TOKEN}`
       },
-      body: JSON.stringify(dataToCreate) // แปลง Object ของเราเป็น String JSON
+      body: JSON.stringify(dataToCreate)
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Error from Server 2:', errorData);
-        throw new Error('Failed to create log on Server 2');
+      const errorData = await response.json();
+      console.error('Error from Server 2:', errorData);
+      throw new Error('Failed to create log on Server 2');
     }
 
-    const newLog = await response.json(); // รับข้อมูลที่เพิ่งสร้างเสร็จกลับมา
-
-    // 4. ส่ง "Created" (201) และข้อมูลใหม่กลับไป
+    const newLog = await response.json();
     res.status(201).json(newLog);
 
   } catch (error) {
@@ -166,8 +157,8 @@ app.post('/logs', async (req, res) => {
   }
 });
 
-
-// --- เดี๋ยวเราจะมาเขียน API routes ตรงนี้ ---
+// --- ส่วนเริ่มต้นเซิร์ฟเวอร์ (โค้ดเดิม) ---
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });

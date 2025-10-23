@@ -14,10 +14,10 @@ async function getConfigsFromServer1() {
     }
 
     const data = await response.json();
-    
+
     // --- DEBUG: พิมพ์ "ข้อมูลดิบ" ที่ Vercel เห็นจริงๆ ---
-    console.log('DEBUG: Raw data from Server 1:', JSON.stringify(data));
-    // --- END DEBUG ---
+    // (เราจะเก็บ log นี้ไว้ เพื่อดูว่า Server 1 แกล้งเราหรือไม่)
+    console.log('DEBUG: Raw data from Server 1:', JSON.stringify(data).substring(0, 300)); // ขอดูแค่ 300 ตัวอักษร
 
     // 2. ตรรกะ "ป้องกัน": เช็กว่าข้อมูลจริงซ่อนอยู่ที่ไหน
     let configsArray = [];
@@ -67,7 +67,140 @@ async function getConfigsFromServer1() {
   }
 }
 
-// (โค้ดส่วนที่เหลือ `app.get`, `app.post`, `app.listen` ให้ "คัดลอก" มาจากโค้ด "รีเซ็ต" อันก่อนหน้านี้ได้เลยครับ มันถูกต้องแล้ว)
-// ...
-// ... (วางโค้ด GET /configs, GET /status, GET /logs, POST /logs, app.listen) ...
-// ...
+// --- 1. GET /configs/{droneId} ---
+app.get('/configs/:droneId', async (req, res) => {
+  try {
+    const { droneId } = req.params; // นี่คือ String (เช่น "3002")
+
+    // 1. ดึงข้อมูลที่ "สะอาด" แล้ว
+    const allConfigs = await getConfigsFromServer1();
+
+    // 2. ตรรกะ "ค้นหา" ที่แม่นยำ
+    const searchId = parseInt(droneId, 10);
+    const config = allConfigs.find(item => {
+      // (ป้องกันข้อมูลเน่า + แปลงเป็น Number ก่อนเทียบ)
+      const itemId = parseInt(item.drone_id, 10); 
+      return itemId === searchId;
+    });
+
+    if (!config) {
+      return res.status(404).json({ error: 'Config not found' });
+    }
+
+    // 3. คัดกรองข้อมูล
+    const result = {
+      drone_id: config.drone_id,
+      drone_name: config.drone_name,
+      light: config.light,
+      country: config.country,
+      weight: config.weight
+    };
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('Error in /configs/:droneId:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- 2. GET /status/{droneId} ---
+app.get('/status/:droneId', async (req, res) => {
+  try {
+    const { droneId } = req.params; 
+
+    // 1. ดึงข้อมูลที่ "สะอาด" แล้ว
+    const allConfigs = await getConfigsFromServer1();
+
+    // 2. ตรรกะ "ค้นหา" ที่แม่นยำ
+    const searchId = parseInt(droneId, 10);
+    const config = allConfigs.find(item => {
+      const itemId = parseInt(item.drone_id, 10);
+      return itemId === searchId;
+    });
+
+    if (!config) {
+      return res.status(404).json({ error: 'Status not found' });
+    }
+
+    // 3. คัดกรองข้อมูล
+    const result = {
+      condition: config.condition
+    };
+
+    res.json(result);
+
+  } catch (error)
+ {
+    console.error('Error in /status/:droneId:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- 3. GET /logs/{droneId} ---
+app.get('/logs/:droneId', async (req, res) => {
+  try {
+    const { droneId } = req.params;
+    const filter = `(drone_id='${droneId}')`;
+    const sort = '-created';
+    const perPage = 12;
+
+    const url = `${process.env.LOG_SERVER_URL}?filter=${encodeURIComponent(filter)}&sort=${sort}&perPage=${perPage}`;
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${process.env.LOG_API_TOKEN}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch logs from Server 2');
+    }
+    const logsData = await response.json();
+    const result = logsData.items.map(log => ({
+        drone_id: log.drone_id,
+        drone_name: log.drone_name,
+        created: log.created,
+        country: log.country,
+        celsius: log.celsius
+      }));
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- 4. POST /logs ---
+app.post('/logs', async (req, res) => {
+  try {
+    const { drone_id, drone_name, country, celsius } = req.body;
+    const dataToCreate = { drone_id, drone_name, country, celsius };
+
+    const response = await fetch(process.env.LOG_SERVER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.LOG_API_TOKEN}`
+      },
+      body: JSON.stringify(dataToCreate)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Error from Server 2:', errorData);
+      throw new Error('Failed to create log on Server 2');
+    }
+    const newLog = await response.json();
+    res.status(201).json(newLog);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- ส่วนเริ่มต้นเซิร์ฟเวอร์ (สำคัญมาก!) ---
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
+});

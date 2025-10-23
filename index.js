@@ -1,40 +1,48 @@
 require('dotenv').config();
 const express = require('express');
-const fetch = require('node-fetch'); // ถูกต้องแล้ว
 const app = express();
 
 app.use(express.json());
 
-// --- 1. GET /configs/{droneId} (แก้ไขตรรกะหา Headers) ---
-app.get('/configs/:droneId', async (req, res) => {
+// --- Helper Function: จัดการข้อมูล Server 1 ---
+// ฟังก์ชันนี้จะไปดึงข้อมูลจาก Server 1 และ "จัดการ" ความไม่คงที่ของข้อมูลให้
+async function getConfigsFromServer1() {
   try {
-    const { droneId } = req.params;
-
-    // 1. ดึงข้อมูล (ถูกต้อง)
+    // 1. ใช้ fetch (ตัวเล็ก) ที่มีอยู่แล้ว ไม่ต้องใช้ node-fetch
     const response = await fetch(process.env.CONFIG_SERVER_URL);
-    const responseData = await response.json(); 
-
-    // 2. FIX: ตรรกะการหา "หัวตาราง" แบบปลอดภัย
-    let headers = responseData.headers; // ลองดึงจาก 'headers'
-    
-    // 3. FIX: ถ้า 'headers' ไม่มี หรือ ว่างเปล่า...
-    if (!headers || headers.length === 0) {
-      if (responseData.data && responseData.data.length > 0) {
-        // ...ให้ไปดึง "หัวตาราง" จาก data แถวแรกแทน
-        headers = responseData.data[0];
-      } else {
-        // ถ้า data ก็ว่างเปล่าด้วย... เรายอมแพ้
-        throw new Error('Server 1 returned no headers and no data');
-      }
+    if (!response.ok) {
+      throw new Error(`Server 1 HTTP error! status: ${response.status}`);
     }
 
-    // 4. ทำความสะอาด "หัวตาราง" ที่เราหามาได้
+    const data = await response.json();
+
+    // 2. ตรรกะ "ป้องกัน": เช็กว่าข้อมูลจริงซ่อนอยู่ที่ไหน
+    let configsArray = [];
+    if (Array.isArray(data)) {
+      configsArray = data; // ถ้ามันส่ง Array มาตรงๆ
+    } else if (data.data && Array.isArray(data.data)) {
+      configsArray = data.data; // ถ้ามันซ่อนอยู่ใน "data"
+    } else if (data.items && Array.isArray(data.items)) {
+      configsArray = data.items; // ถ้ามันซ่อนอยู่ใน "items"
+    } else if (data.results && Array.isArray(data.results)) {
+      configsArray = data.results; // ถ้ามันซ่อนอยู่ใน "results"
+    } else {
+      throw new Error('Cannot find config array in Server 1 response');
+    }
+
+    // 3. แปลง "Array ของ Array" ให้เป็น "Array ของ Object" (ตรรกะการแปลงข้อมูล)
+    
+    // 3a. หา "หัวตาราง" (เผื่อ Server 1 ไม่ส่ง 'headers' มาให้)
+    let headers = (data.headers && data.headers.length > 0) 
+                  ? data.headers 
+                  : configsArray[0];
+    
     const cleanedHeaders = headers.map(h => h.trim());
     
-    // 5. ดึง rows (ถูกต้อง)
-    const valueRows = responseData.data.slice(1);
+    // 3b. ดึง "ข้อมูล" (ตัดแถวหัวตารางที่ซ้ำซ้อนทิ้ง)
+    const valueRows = configsArray.slice(1); 
 
-    // 6. แปลงร่าง (ตอนนี้ 'cleanedHeaders' สะอาดแล้ว)
+    // 3c. แปลงร่าง
     const allConfigs = valueRows.map(row => {
       const configObject = {};
       cleanedHeaders.forEach((header, index) => {
@@ -43,16 +51,35 @@ app.get('/configs/:droneId', async (req, res) => {
       return configObject;
     });
 
-    // 7. ค้นหา (โค้ดนี้ถูกต้องแล้ว)
-    const config = allConfigs.find(item => 
-      item.drone_id != null && item.drone_id.toString().trim() === droneId
-    );
+    return allConfigs; // ส่ง Array of Objects ที่สะอาดแล้วกลับไป
+
+  } catch (error) {
+    console.error('Error in getConfigsFromServer1:', error);
+    throw error; // โยน Error ต่อไปให้ app.get
+  }
+}
+
+// --- 1. GET /configs/{droneId} (ฉบับใหม่ ที่เรียกใช้ Helper Function) ---
+app.get('/configs/:droneId', async (req, res) => {
+  try {
+    const { droneId } = req.params; // นี่คือ String (เช่น "3002")
+
+    // 1. ดึงข้อมูลที่ "สะอาด" แล้ว
+    const allConfigs = await getConfigsFromServer1();
+
+    // 2. ตรรกะ "ค้นหา" ที่แม่นยำ
+    // (แปลงทั้งคู่เป็น Number แล้วเทียบ ===)
+    const searchId = parseInt(droneId, 10);
+    const config = allConfigs.find(item => {
+      const itemId = parseInt(item.drone_id, 10); // แปลงค่าในข้อมูลเป็น Number
+      return itemId === searchId;
+    });
 
     if (!config) {
       return res.status(404).json({ error: 'Config not found' });
     }
 
-    // 8. คัดกรองข้อมูล
+    // 3. คัดกรองข้อมูล (ตามโจทย์)
     const result = {
       drone_id: config.drone_id,
       drone_name: config.drone_name,
@@ -69,78 +96,52 @@ app.get('/configs/:droneId', async (req, res) => {
   }
 });
 
-// --- 2. GET /status/{droneId} (แก้ไขตรรกะหา Headers) ---
+// --- 2. GET /status/{droneId} (ฉบับใหม่ ที่เรียกใช้ Helper Function) ---
 app.get('/status/:droneId', async (req, res) => {
   try {
-    const { droneId } = req.params;
+    const { droneId } = req.params; // นี่คือ String
 
-    // 1. ดึงข้อมูล (ถูกต้อง)
-    const response = await fetch(process.env.CONFIG_SERVER_URL);
-    const responseData = await response.json();
+    // 1. ดึงข้อมูลที่ "สะอาด" แล้ว
+    const allConfigs = await getConfigsFromServer1();
 
-    // 2. FIX: ตรรกะการหา "หัวตาราง" แบบปลอดภัย
-    let headers = responseData.headers; // ลองดึงจาก 'headers'
-    
-    // 3. FIX: ถ้า 'headers' ไม่มี หรือ ว่างเปล่า...
-    if (!headers || headers.length === 0) {
-      if (responseData.data && responseData.data.length > 0) {
-        // ...ให้ไปดึง "หัวตาราง" จาก data แถวแรกแทน
-        headers = responseData.data[0];
-      } else {
-        // ถ้า data ก็ว่างเปล่าด้วย... เรายอมแพ้
-        throw new Error('Server 1 returned no headers and no data');
-      }
-    }
-
-    // 4. ทำความสะอาด "หัวตาราง" ที่เราหามาได้
-    const cleanedHeaders = headers.map(h => h.trim());
-
-    // 5. ดึง rows (ถูกต้อง)
-    const valueRows = responseData.data.slice(1);
-
-    // 6. แปลงร่าง (ตอนนี้ 'cleanedHeaders' สะอาดแล้ว)
-    const allConfigs = valueRows.map(row => {
-      const configObject = {};
-      cleanedHeaders.forEach((header, index) => {
-        configObject[header] = row[index];
-      });
-      return configObject;
+    // 2. ตรรกะ "ค้นหา" ที่แม่นยำ
+    const searchId = parseInt(droneId, 10);
+    const config = allConfigs.find(item => {
+      const itemId = parseInt(item.drone_id, 10);
+      return itemId === searchId;
     });
-
-    // 7. ค้นหา (โค้ดนี้ถูกต้องแล้ว)
-    const config = allConfigs.find(item => 
-      item.drone_id != null && item.drone_id.toString().trim() === droneId
-    );
 
     if (!config) {
       return res.status(404).json({ error: 'Status not found' });
     }
 
-    // 8. คัดกรองข้อมูล
+    // 3. คัดกรองข้อมูล (ตามโจทย์)
     const result = {
       condition: config.condition
     };
 
     res.json(result);
 
-  } catch (error) {
+  } catch (error)
+ {
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// --- 3. GET /logs/{droneId} (โค้ดเดิม - ถูกต้องแล้ว) ---
+// --- 3. GET /logs/{droneId} (โค้ดเดิมที่ถูกต้อง) ---
 app.get('/logs/:droneId', async (req, res) => {
   try {
     const { droneId } = req.params;
 
+    // ตรรกะการ filter ของ PocketBase ถูกต้องตามโจทย์
     const filter = `(drone_id='${droneId}')`;
     const sort = '-created';
     const perPage = 12;
 
     const url = `${process.env.LOG_SERVER_URL}?filter=${encodeURIComponent(filter)}&sort=${sort}&perPage=${perPage}`;
 
-    const response = await fetch(url, {
+    const response = await fetch(url, { // ใช้ fetch (ตัวเล็ก)
       headers: {
         'Authorization': `Bearer ${process.env.LOG_API_TOKEN}`
       }
@@ -170,7 +171,7 @@ app.get('/logs/:droneId', async (req, res) => {
   }
 });
 
-// --- 4. POST /logs (โค้ดเดิม - ถูกต้องแล้ว) ---
+// --- 4. POST /logs (โค้ดเดิมที่ถูกต้อง) ---
 app.post('/logs', async (req, res) => {
   try {
     const { drone_id, drone_name, country, celsius } = req.body;
@@ -182,7 +183,7 @@ app.post('/logs', async (req, res) => {
       celsius
     };
 
-    const response = await fetch(process.env.LOG_SERVER_URL, {
+    const response = await fetch(process.env.LOG_SERVER_URL, { // ใช้ fetch (ตัวเล็ก)
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

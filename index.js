@@ -4,7 +4,7 @@ const app = express();
 
 app.use(express.json());
 
-// --- Helper Function: จัดการข้อมูล Server 1 (ฉบับ "เรียบง่าย") ---
+// --- Helper Function: จัดการข้อมูล Server 1  ---
 async function getConfigsFromServer1() {
   try {
     // 1. ดึงข้อมูล
@@ -17,8 +17,8 @@ async function getConfigsFromServer1() {
     
     // 2. FIX: ตรวจสอบว่า "data" (ที่เป็น Array of Objects) มีอยู่จริง
     if (responseData.data && Array.isArray(responseData.data)) {
-      // 3. FIX: "ส่ง" มันกลับไปเลย! ไม่ต้องแปลงร่างอะไรทั้งสิ้น!
-      return responseData.data; // นี่คือ [{...}, {...}, ...]
+      // 3. FIX: "ส่ง" มันกลับไปเลย ไม่ต้องแปลง
+      return responseData.data;
     } else {
       throw new Error('Server 1 response does not contain a "data" array.');
     }
@@ -34,11 +34,11 @@ app.get('/configs/:droneId', async (req, res) => {
   try {
     const { droneId } = req.params; // นี่คือ String (เช่น "3002")
 
-    // 1. ดึงข้อมูลที่ "ถูกต้อง" แล้ว
+    // 1. ดึงข้อมูลที่ "ถูกต้อง"
     // (allConfigs คือ [{drone_id: 3001, ...}, {drone_id: 3002, ...}])
     const allConfigs = await getConfigsFromServer1();
 
-    // 2. ตรรกะ "ค้นหา" ที่แม่นยำ (ถูกต้องแล้ว)
+    // 2. ตรรกะ "ค้นหา" ที่แม่นยำ
     const searchId = parseInt(droneId, 10);
     const config = allConfigs.find(item => {
       // (ป้องกันข้อมูลเน่า + แปลงเป็น Number ก่อนเทียบ)
@@ -60,7 +60,7 @@ app.get('/configs/:droneId', async (req, res) => {
       weight: config.weight
     };
 
-    res.json(result); // <--- นี่คือ JSON ที่คุณรอคอย!
+    res.json(result);
 
   } catch (error) {
     console.error('Error in /configs/:droneId:', error);
@@ -76,7 +76,7 @@ app.get('/status/:droneId', async (req, res) => {
     // 1. ดึงข้อมูลที่ "ถูกต้อง" แล้ว
     const allConfigs = await getConfigsFromServer1();
 
-    // 2. ตรรกะ "ค้นหา" ที่แม่นยำ (ถูกต้องแล้ว)
+    // 2. ตรรกะ "ค้นหา" ที่แม่นยำ
     const searchId = parseInt(droneId, 10);
     const config = allConfigs.find(item => {
       const itemId = parseInt(item.drone_id, 10);
@@ -101,7 +101,7 @@ app.get('/status/:droneId', async (req, res) => {
   }
 });
 
-// --- 3. GET /logs/{droneId} (โค้ดเดิม - ถูกต้องแล้ว) ---
+// --- 3. GET /logs/{droneId}  ---
 app.get('/logs/:droneId', async (req, res) => {
   try {
     const { droneId } = req.params;
@@ -135,7 +135,7 @@ app.get('/logs/:droneId', async (req, res) => {
   }
 });
 
-// --- 4. POST /logs (โค้ดเดิม - ถูกต้องแล้ว) ---
+// --- 4. POST /logs  ---
 app.post('/logs', async (req, res) => {
   try {
     const { drone_id, drone_name, country, celsius } = req.body;
@@ -163,7 +163,7 @@ app.post('/logs', async (req, res) => {
   }
 });
 
-// --- ส่วนเริ่มต้นเซิร์ฟเวอร์ (โค้ดเดิม) ---
+// --- ส่วนเริ่มต้นเซิร์ฟเวอร์  ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
